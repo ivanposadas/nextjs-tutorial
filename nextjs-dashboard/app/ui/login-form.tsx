@@ -68,7 +68,6 @@ export default function LoginForm() {
         <Button className="mt-4 w-full" aria-disabled={isPending}>
           Log in <ArrowRightIcon className="ml-auto h-5 w-5 text-gray-50" />
         </Button>
-        <GitHubButton />
         <div
           className="flex h-8 items-end space-x-1"
           aria-live="polite"
@@ -81,6 +80,7 @@ export default function LoginForm() {
             </>
           )}
         </div>
+        <GitHubButton />
       </div>
     </form>
   );
