@@ -1,11 +1,13 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import GitHub from "next-auth/providers/github"
+import Facebook from "next-auth/providers/facebook"
 import { authConfig } from './auth.config';
 import { z } from 'zod';
 import { sql } from '@vercel/postgres';
 import type { User } from '@/app/lib/definitions';
 import bcrypt from 'bcrypt';
+import vercelPostgresAdapter from "@/app/lib/vercelPostgresAdapter";
  
 async function getUser(email: string): Promise<User | undefined> {
   try {
@@ -19,6 +21,9 @@ async function getUser(email: string): Promise<User | undefined> {
  
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  debug: process.env.NODE_ENV === 'development',
+  adapter: vercelPostgresAdapter(),
+  session: { strategy: "jwt" },
   providers: [
     Credentials({
       async authorize(credentials) {
@@ -39,5 +44,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
     GitHub,
+    Facebook,
   ],
 });
