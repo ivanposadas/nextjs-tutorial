@@ -1,9 +1,9 @@
-import '@/app/ui/global.css';
-import { inter } from '@/app/ui/fonts';
+import '@/app/components/ui/global.css';
+import { inter } from '@/app/components/ui/fonts';
 import { Metadata } from 'next';
 import { SessionProvider } from 'next-auth/react';
 import { headers } from 'next/headers';
-import { auth } from '@/auth';
+import { auth } from '@/app/lib/auth/auth';
 
 export const metadata: Metadata = {
   title: 'Acme Dashboard',

@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { auth } from './auth';
+import { auth } from '@/app/lib/auth/auth';
 
 export async function middleware(request: NextRequest) {
   const session = await auth();
   const { pathname } = request.nextUrl;
 
   // Public paths that don't require authentication
-  const isPublicPath = pathname === '/login' || 
+  const isPublicPath = pathname === '/features/login' || 
     pathname.startsWith('/_next') || 
     pathname.startsWith('/api');
 
@@ -21,7 +21,7 @@ export async function middleware(request: NextRequest) {
 
   // Redirect unauthenticated users to login page
   if (!isPublicPath && !isAuthenticated) {
-    const loginUrl = new URL('/login', request.url);
+    const loginUrl = new URL('/features/login', request.url);
     loginUrl.searchParams.set('from', pathname);
     return NextResponse.redirect(loginUrl);
   }
