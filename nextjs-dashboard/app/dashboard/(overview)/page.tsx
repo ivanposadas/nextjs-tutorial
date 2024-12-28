@@ -31,7 +31,7 @@ export default async function Page() {
                     <RevenueChart ownerId={session.user.id} />
                 </Suspense>
                 <Suspense fallback={<LatestInvoicesSkeleton />}>
-                    <LatestInvoices ownerId={session.user.id} />
+                    <LatestInvoices userId={session.user.id} />
                 </Suspense>
             </div>
         </main>

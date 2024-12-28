@@ -32,7 +32,7 @@ export async function fetchLatestInvoices(ownerId: string) {
     const data = await sql<LatestInvoiceRaw>`
       SELECT invoices.amount, customers.name, customers.image_url, customers.email, invoices.id
       FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
+      LEFT JOIN customers ON invoices.customer_id = customers.id
       WHERE invoices.owner_id = ${ownerId}
       ORDER BY invoices.date DESC
       LIMIT 5`;
@@ -106,7 +106,7 @@ export async function fetchFilteredInvoices(
         customers.email,
         customers.image_url
       FROM invoices
-      JOIN customers ON invoices.customer_id = customers.id
+      LEFT JOIN customers ON invoices.customer_id = customers.id
       WHERE 
         invoices.owner_id = ${ownerId}
         AND (
