@@ -3,8 +3,7 @@ import { z } from 'zod';
 import { sql } from '@vercel/postgres';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { signIn, signOut } from '@/app/lib/auth/auth';
-import { AuthError } from 'next-auth';
+import { signOut } from '@/app/lib/auth/auth';
 
 const FormSchema = z.object({
     id: z.string(),
@@ -32,7 +31,7 @@ export type State = {
     message?: string | null;
 };
 
-export async function createInvoice(prevState: State, formData: FormData) {
+export async function createInvoice(ownerId: string, prevState: State, formData: FormData) {
     const validatedFields = CreateInvoice.safeParse({
         customerId: formData.get('customerId'),
         amount: formData.get('amount'),
@@ -52,9 +51,9 @@ export async function createInvoice(prevState: State, formData: FormData) {
 
     try {
         await sql`
-        INSERT INTO invoices (customer_id, amount, status, date)
-        VALUES (${customerId}, ${amountInCents}, ${status}, ${date})
-      `;
+            INSERT INTO invoices (customer_id, amount, status, date, owner_id)
+            VALUES (${customerId}, ${amountInCents}, ${status}, ${date}, ${ownerId})
+        `;
     } catch (error) {
         return {
             message: 'Database Error: Failed to Create Invoice.',
@@ -65,11 +64,7 @@ export async function createInvoice(prevState: State, formData: FormData) {
     redirect('/dashboard/invoices');
 }
 
-export async function updateInvoice(
-    id: string,
-    prevState: State,
-    formData: FormData,
-) {
+export async function updateInvoice(id: string, ownerId: string, prevState: State, formData: FormData) {
     const validatedFields = UpdateInvoice.safeParse({
         customerId: formData.get('customerId'),
         amount: formData.get('amount'),
@@ -87,26 +82,57 @@ export async function updateInvoice(
     const amountInCents = amount * 100;
 
     try {
-        await sql`
-        UPDATE invoices
-        SET customer_id = ${customerId}, amount = ${amountInCents}, status = ${status}
-        WHERE id = ${id}
-      `;
+        // First verify the invoice exists and belongs to the owner
+        const verifyResult = await sql`
+            SELECT id FROM invoices 
+            WHERE id = ${id} AND owner_id = ${ownerId}
+        `;
+
+        if (verifyResult.rowCount === 0) {
+            return {
+                message: 'Invoice not found or access denied.',
+            };
+        }
+
+        // Perform the update
+        const result = await sql`
+            UPDATE invoices
+            SET 
+                customer_id = ${customerId}, 
+                amount = ${amountInCents}, 
+                status = ${status}
+            WHERE id = ${id} AND owner_id = ${ownerId}
+            RETURNING *
+        `;
+
+        if (result.rowCount === 0) {
+            return {
+                message: 'Failed to update invoice. No rows affected.',
+            };
+        }
     } catch (error) {
-        return { message: 'Database Error: Failed to Update Invoice.' };
+        return {
+            message: 'Database Error: Failed to Update Invoice.',
+        };
     }
 
+    // Revalidate all relevant paths
+    revalidatePath('/dashboard');
     revalidatePath('/dashboard/invoices');
+    revalidatePath(`/dashboard/invoices/${id}`);
+    revalidatePath(`/dashboard/invoices/${id}/edit`);
+    
+    // Force a hard navigation to ensure fresh data
     redirect('/dashboard/invoices');
 }
 
-export async function deleteInvoice(id: string) {
+export async function deleteInvoice(id: string, ownerId: string, formData: FormData) {
     try {
-        await sql`DELETE FROM invoices WHERE id = ${id}`;
+        await sql`DELETE FROM invoices WHERE id = ${id} AND owner_id = ${ownerId}`;
         revalidatePath('/dashboard/invoices');
-        return { message: 'Deleted Invoice.' };
     } catch (error) {
-        return { message: 'Database Error: Failed to Delete Invoice.' };
+        console.error('Database Error:', error);
+        throw new Error('Failed to delete invoice.');
     }
 }
 
@@ -115,21 +141,119 @@ export async function authenticate(
     formData: FormData,
 ) {
     try {
-        await signIn('credentials', formData);
+        await signOut();
     } catch (error) {
-        if (error instanceof AuthError) {
-            switch (error.type) {
-                case 'CredentialsSignin':
-                    return 'Invalid credentials.';
-                default:
-                    return 'Something went wrong.';
-            }
+        if ((error as Error).message.includes('NEXT_REDIRECT')) {
+            throw error;
         }
-        throw error;
+        return 'Error: Failed to Sign Out';
     }
 }
 
-export async function signOutAction() {
-    'use server';
-    await signOut({ redirectTo: '/login' });
+const DEFAULT_IMAGE_URL = 'https://example.com/placeholder.png';
+
+const CustomerSchema = z.object({
+    name: z.string({
+        invalid_type_error: 'Please enter a name.',
+    }).min(1, { message: 'Please enter a name.' }),
+    email: z.string({
+        invalid_type_error: 'Please enter an email.',
+    }).email({ message: 'Please enter a valid email address.' }),
+    image_url: z.string().nullable().transform(val => {
+        if (!val || val === '') {
+            return null;
+        }
+        return val;
+    }),
+});
+
+export type CustomerState = {
+    errors?: {
+        name?: string[];
+        email?: string[];
+        image_url?: string[];
+    };
+    message?: string | null;
+};
+
+export async function createCustomer(ownerId: string, prevState: CustomerState, formData: FormData) {
+    const validatedFields = CustomerSchema.safeParse({
+        name: formData.get('name'),
+        email: formData.get('email'),
+        image_url: formData.get('image_url') || null,
+    });
+
+    if (!validatedFields.success) {
+        return {
+            errors: validatedFields.error.flatten().fieldErrors,
+            message: 'Missing Fields. Failed to Create Customer.',
+        };
+    }
+
+    const { name, email, image_url } = validatedFields.data;
+
+    try {
+        await sql`
+            INSERT INTO customers (id, name, email, image_url, owner_id)
+            VALUES (${crypto.randomUUID()}, ${name}, ${email}, ${image_url}, ${ownerId})
+        `;
+    } catch (error) {
+        return {
+            message: 'Database Error: Failed to Create Customer.',
+        };
+    }
+
+    revalidatePath('/dashboard/customers');
+    redirect('/dashboard/customers');
+}
+
+export async function updateCustomer(id: string, ownerId: string, prevState: CustomerState, formData: FormData) {
+    const validatedFields = CustomerSchema.safeParse({
+        name: formData.get('name'),
+        email: formData.get('email'),
+        image_url: formData.get('image_url') || null,
+    });
+
+    if (!validatedFields.success) {
+        return {
+            errors: validatedFields.error.flatten().fieldErrors,
+            message: 'Missing Fields. Failed to Update Customer.',
+        };
+    }
+
+    const { name, email, image_url } = validatedFields.data;
+
+    try {
+        const result = await sql`
+            UPDATE customers
+            SET name = ${name}, email = ${email}, image_url = ${image_url}
+            WHERE id = ${id} AND owner_id = ${ownerId}
+            RETURNING id
+        `;
+
+        // Check if the update affected any rows
+        if (result.rowCount === 0) {
+            return {
+                message: 'Could not find customer to update.',
+            };
+        }
+    } catch (error) {
+        console.error('Failed to update customer:', error);
+        return {
+            message: 'Database Error: Failed to Update Customer.',
+        };
+    }
+
+    revalidatePath('/dashboard/customers');
+    redirect('/dashboard/customers');
+}
+
+export async function deleteCustomer(id: string, formData: FormData) {
+    try {
+        await sql`DELETE FROM customers WHERE id = ${id}`;
+        revalidatePath('/dashboard/customers');
+    } catch (error) {
+        console.error('Failed to delete customer:', error);
+        throw new Error('Failed to delete customer.');
+    }
 }

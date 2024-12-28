@@ -1,6 +1,6 @@
-import Form from '@/app/components/ui/invoices/edit-form';
+import { fetchCustomerById } from '@/app/lib/data';
 import Breadcrumbs from '@/app/components/ui/invoices/breadcrumbs';
-import { fetchInvoiceById, fetchCustomers } from '@/app/lib/data';
+import Form from '@/app/components/ui/customers/edit-form';
 import { notFound } from 'next/navigation';
 import { auth } from '@/app/lib/auth/auth';
 
@@ -11,12 +11,9 @@ export default async function Page({ params }: { params: { id: string } }) {
   }
 
   const id = params.id;
-  const [invoice, customers] = await Promise.all([
-    fetchInvoiceById(id, session.user.id),
-    fetchCustomers(session.user.id),
-  ]);
+  const customer = await fetchCustomerById(id, session.user.id);
 
-  if (!invoice) {
+  if (!customer) {
     notFound();
   }
 
@@ -24,15 +21,15 @@ export default async function Page({ params }: { params: { id: string } }) {
     <main>
       <Breadcrumbs
         breadcrumbs={[
-          { label: 'Invoices', href: '/dashboard/invoices' },
+          { label: 'Customers', href: '/dashboard/customers' },
           {
-            label: 'Edit Invoice',
-            href: `/dashboard/invoices/${id}/edit`,
+            label: 'Edit Customer',
+            href: `/dashboard/customers/${id}/edit`,
             active: true,
           },
         ]}
       />
-      <Form invoice={invoice} customers={customers} ownerId={session.user.id} />
+      <Form customer={customer} ownerId={session.user.id} />
     </main>
   );
-}
+} 

@@ -3,15 +3,22 @@ import { UpdateInvoice, DeleteInvoice } from '@/app/components/ui/invoices/butto
 import InvoiceStatus from '@/app/components/ui/invoices/status';
 import { formatDateToLocal, formatCurrency } from '@/app/lib/utils';
 import { fetchFilteredInvoices } from '@/app/lib/data';
+import { UserCircleIcon } from '@heroicons/react/24/outline';
 
 export default async function InvoicesTable({
   query,
   currentPage,
+  ownerId,
 }: {
   query: string;
   currentPage: number;
+  ownerId: string;
 }) {
-  const invoices = await fetchFilteredInvoices(query, currentPage);
+  const invoices = await fetchFilteredInvoices(query, currentPage, ownerId);
+
+  function isValidImageUrl(url: string | null): boolean {
+    return url !== null && url !== '' && url !== 'null';
+  }
 
   return (
     <div className="mt-6 flow-root">
@@ -26,13 +33,17 @@ export default async function InvoicesTable({
                 <div className="flex items-center justify-between border-b pb-4">
                   <div>
                     <div className="mb-2 flex items-center">
-                      <Image
-                        src={invoice.image_url}
-                        className="mr-2 rounded-full"
-                        width={28}
-                        height={28}
-                        alt={`${invoice.name}'s profile picture`}
-                      />
+                      {isValidImageUrl(invoice.image_url) ? (
+                        <Image
+                          src={invoice.image_url!}
+                          className="mr-2 rounded-full"
+                          width={28}
+                          height={28}
+                          alt={`${invoice.name}'s profile picture`}
+                        />
+                      ) : (
+                        <UserCircleIcon className="mr-2 h-7 w-7 text-gray-400" />
+                      )}
                       <p>{invoice.name}</p>
                     </div>
                     <p className="text-sm text-gray-500">{invoice.email}</p>
@@ -48,7 +59,7 @@ export default async function InvoicesTable({
                   </div>
                   <div className="flex justify-end gap-2">
                     <UpdateInvoice id={invoice.id} />
-                    <DeleteInvoice id={invoice.id} />
+                    <DeleteInvoice id={invoice.id} ownerId={ownerId} />
                   </div>
                 </div>
               </div>
@@ -73,7 +84,7 @@ export default async function InvoicesTable({
                   Status
                 </th>
                 <th scope="col" className="relative py-3 pl-6 pr-3">
-                  <span className="sr-only">Edit</span>
+                  <span className="sr-only">Actions</span>
                 </th>
               </tr>
             </thead>
@@ -85,13 +96,17 @@ export default async function InvoicesTable({
                 >
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex items-center gap-3">
-                      <Image
-                        src={invoice.image_url}
-                        className="rounded-full"
-                        width={28}
-                        height={28}
-                        alt={`${invoice.name}'s profile picture`}
-                      />
+                      {isValidImageUrl(invoice.image_url) ? (
+                        <Image
+                          src={invoice.image_url!}
+                          className="rounded-full"
+                          width={28}
+                          height={28}
+                          alt={`${invoice.name}'s profile picture`}
+                        />
+                      ) : (
+                        <UserCircleIcon className="h-7 w-7 text-gray-400" />
+                      )}
                       <p>{invoice.name}</p>
                     </div>
                   </td>
@@ -110,7 +125,7 @@ export default async function InvoicesTable({
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex justify-end gap-3">
                       <UpdateInvoice id={invoice.id} />
-                      <DeleteInvoice id={invoice.id} />
+                      <DeleteInvoice id={invoice.id} ownerId={ownerId} />
                     </div>
                   </td>
                 </tr>
